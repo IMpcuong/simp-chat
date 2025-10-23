@@ -48,6 +48,8 @@ int main()
     return -1;
   }
 
+  // -----
+
   sockaddr_in sender_addr;
   memset(&sender_addr, 0 /*default=*/, sizeof(sender_addr) /*__len=*/);
   sender_addr.sin_family = AF_INET;
@@ -58,6 +60,8 @@ int main()
   for (int _ = 0; _ < 10; _++)
     sendto(simp_sk, sender_msg.c_str(), sender_msg.size(), 0 /*flags=*/,
         (sockaddr *)&addr, sizeof(sender_addr));
+
+  // -----
 
   std::atomic<bool> running = true;
   while (running)
