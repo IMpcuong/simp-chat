@@ -1,7 +1,10 @@
+#include <cstring>
 #include <iostream>
 
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <netinet/in.h>
+#include <sys/types.h>
 #include <sys/socket.h>
 
 template <typename... Args>
@@ -20,20 +23,35 @@ const int DEFAULT_BUF_SZ = 1024;
 //  + simp := simple
 //  + sk := socket
 //  + rc := return-code
+//  + in := Internet
 //
+
+bool resolve_hostname(const char *from_hostname, struct in_addr *to_addr)
+{
+  struct addrinfo *info;
+  int rc = getaddrinfo(from_hostname /*hostname=*/, NULL, NULL, &info /*res_addrinfo=*/);
+  if (rc != 0)
+    return false;
+
+  auto *sock_addr = (struct sockaddr_in *)info->ai_addr;
+  memcpy(to_addr, &sock_addr->sin_addr /*__src=*/, sizeof(struct in_addr) /*__n=*/);
+  freeaddrinfo(info);
+
+  return true;
+}
 
 int main()
 {
   // -----
 
-  int simp_sk = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  int simp_sk = socket(AF_INET /*address_family=*/, SOCK_DGRAM /*sock_type=*/, IPPROTO_UDP /*sock_proto=*/);
   if (simp_sk == -1)
   {
     println("ERROR: Cannot yield socket fd");
     return -1;
   }
 
-  sockaddr_in addr;
+  struct sockaddr_in addr;
   // memset() := writes len bytes of value `default` (converted to an unsigned char) to the string `b`.
   memset(&addr, 0 /*default=*/, sizeof(addr) /*__len=*/);
   addr.sin_family = AF_INET;
@@ -41,25 +59,27 @@ int main()
   // htons() := converts network host value to network (short) byte order.
   addr.sin_port = htons(DEFAULT_PORT);
 
-  int bind_rc = bind(simp_sk, (sockaddr *)&addr, sizeof(addr));
+  int bind_rc = bind(simp_sk, (struct sockaddr *)&addr, sizeof(addr));
   if (bind_rc == -1)
   {
-    println("ERROR: Cannot bind socket with given address");
+    println("ERROR: Cannot bind socket to the given address");
     return -1;
   }
 
   // -----
 
-  sockaddr_in sender_addr;
-  memset(&sender_addr, 0 /*default=*/, sizeof(sender_addr) /*__len=*/);
+  struct sockaddr_in sender_addr;
+  socklen_t sender_addr_sz = sizeof(struct sockaddr_in);
+  memset(&sender_addr, 0 /*default=*/, sender_addr_sz /*__len=*/);
   sender_addr.sin_family = AF_INET;
   sender_addr.sin_port = htons(DEFAULT_SENDER_PORT);
-  socklen_t sender_packet_sz = sizeof(sender_addr);
-  inet_pton(AF_INET, "127.0.0.1", &sender_addr.sin_addr);
-  std::string sender_msg = "YOoo, mate, ltns ^^";
+  // inet_pton() := converts IPv4/v6 address from text to binary form.
+  inet_pton(AF_INET /*address_family=*/, "127.0.0.1" /*src=*/, &sender_addr.sin_addr /*dst=*/);
+
+  std::string sender_msg = "YOoO, mate, ltns ^^";
   for (int _ = 0; _ < 10; _++)
     sendto(simp_sk, sender_msg.c_str(), sender_msg.size(), 0 /*flags=*/,
-        (sockaddr *)&addr, sizeof(sender_addr));
+        (struct sockaddr *)&addr, sender_addr_sz);
 
   // -----
 
@@ -70,8 +90,16 @@ int main()
     memset(buf, 0, DEFAULT_BUF_SZ);
 
     ssize_t recv_sz = recvfrom(simp_sk, buf, DEFAULT_BUF_SZ - 1, 0 /*flags=*/,
-        (sockaddr *)&sender_addr, &sender_packet_sz);
+        (struct sockaddr *)&sender_addr, &sender_addr_sz);
     if (recv_sz)
-      println("INFO: Welcome to the hell-of-simp ~", inet_ntoa(sender_addr.sin_addr));
+    {
+      in_addr res_addr = {0};
+      const char *host = inet_ntoa(sender_addr.sin_addr);
+      if (resolve_hostname(host, &res_addr))
+      {
+        println("INFO: Welcome to the hell-of-simp ~", host);
+        println("INFO: Nw-number-part + local-nw-part ~", inet_netof(res_addr), inet_lnaof(res_addr));
+      }
+    }
   }
 }
