@@ -14,11 +14,17 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+//
+// @Todo(impcuong):
+//  + Caches old messages when no peer has joined the chat (historical messages are visible to all peer?).
+//  + Provides a proxy server to simulate multiple-peers-communication scenario (group chat).
+//
+
 template <typename... Args>
 void println(const Args &...args)
 {
   bool end = true;
-  ((std::cout << (end ? (end = false, "") : " ") << args), ...) << "\n";
+  ((std::cout << (end ? (end = false, "") : " ") << args), ...) << std::endl;
 }
 
 //
@@ -39,7 +45,7 @@ void capture_signal_then_report(int sig_no, siginfo_t *info, void *_ctx)
   void *report[_depth];
   size_t size = backtrace(report, _depth);
   fprintf(stderr, "INFO: Stack-trace:\n");
-  // Using the literal '2' for STDERR_FILENO since you noted the constant issue
+  // Using the literal '2' for STDERR_FILENO since you noted the constant issue.
   backtrace_symbols_fd(report, size, 2 /*fd=*/);
 
   signal(sig_no, SIG_DFL);
@@ -112,10 +118,11 @@ int main(int argc, char **argv)
 
   // -----
 
-  if (argc != 3) {
-    std::cout << "Usage: " << argv[0] << " <my_port> <peer_port>" << std::endl;
-    std::cout << "Example: " << argv[0] << " 8888 9999" << std::endl;
-    return 1;
+  if (argc != 3)
+  {
+    println("Usage:", argv[0], "<my_port> <peer_port>");
+    println("Example:", argv[0], "8888 9999");
+    return -1;
   }
 
   int port = atoi(argv[1]);
